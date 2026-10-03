@@ -11,15 +11,18 @@ AVATAR = {"category_head": TEAL, "cx_reviewer": AMBER, "supply_chain": "#3D4440"
 CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
-html, body, [class*="st-"], .stMarkdown { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
-.block-container { padding-top: 1.2rem; max-width: 1280px; }
+html, body, .stApp, .stMarkdown, p, li, label, input, textarea, h1, h2, h3, h4 {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+.block-container { padding-top: 3.2rem; max-width: 1280px; }
 [data-testid="stSidebar"] { background: #17211F; }
 [data-testid="stSidebar"] * { color: #E6EBE8 !important; }
+[data-testid="stSidebar"] button { background: #2A3835 !important; border: 1px solid #4A5753 !important; }
 .fr-badge { display:flex; align-items:center; gap:10px; justify-content:flex-end; }
 .fr-avatar { width:36px; height:36px; border-radius:18px; color:#fff; display:flex; align-items:center;
              justify-content:center; font-weight:600; font-size:13px; flex:none; }
 .fr-who { display:flex; flex-direction:column; line-height:1.2; }
 .fr-who b { font-size:14px; } .fr-who span { font-size:12px; color:#5B625E; }
+.fr-kpis { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
 .fr-kpi { background:#fff; border:1px solid #DADDD8; border-radius:8px; padding:12px 14px; height:100%; }
 .fr-kpi .l { font-size:12px; color:#5B625E; } .fr-kpi .v { font-size:24px; font-weight:600; }
 .fr-kpi .n { font-size:12px; color:#5B625E; }
@@ -32,7 +35,8 @@ html, body, [class*="st-"], .stMarkdown { font-family: 'IBM Plex Sans', system-u
 .fr-reply { background:#F4F5F2; border-radius:6px; padding:12px 14px; font-size:16px; line-height:1.55; }
 .fr-struck { text-decoration: line-through; color:#5B625E; }
 .fr-mono { font-family:'IBM Plex Mono', monospace; }
-@media (max-width: 640px) { .fr-kpi .v { font-size:20px; } .block-container { padding-left:12px; padding-right:12px; } }
+@media (max-width: 640px) { .fr-kpi .v { font-size:20px; } .block-container { padding-left:12px; padding-right:12px; }
+  .fr-badge { justify-content:flex-start; } }
 </style>
 """
 
@@ -42,9 +46,9 @@ def setup_page(title: str) -> None:
 
 
 def header(title: str, subtitle: str = "") -> None:
-    """Page title on the left, signed-in person on the right (wraps under the title on a phone)."""
+    """Page title on the left, signed-in person on the right (moves under the title on a phone)."""
     u = user()
-    left, right = st.columns([3, 2], vertical_alignment="center")
+    left, right = st.columns([3, 2], vertical_alignment="top")
     with left:
         st.markdown(f"## {html.escape(title)}")
         if subtitle:
@@ -58,19 +62,15 @@ def header(title: str, subtitle: str = "") -> None:
                </div>""",
             unsafe_allow_html=True,
         )
-        if st.button("Sign out", key="signout", use_container_width=False):
-            sign_out()
-            st.rerun()
 
 
 def kpis(items: list[tuple[str, str, str]], color: dict | None = None) -> None:
-    """items = [(label, value, note)]. Two per row on phones, all in one row on desktop."""
-    cols = st.columns(len(items))
-    for col, (label, value, note) in zip(cols, items):
-        c = (color or {}).get(label, INK)
-        col.markdown(f"""<div class="fr-kpi"><div class="l">{html.escape(label)}</div>
-                         <div class="v" style="color:{c}">{html.escape(str(value))}</div>
-                         <div class="n">{html.escape(note)}</div></div>""", unsafe_allow_html=True)
+    """items = [(label, value, note)]. A grid: two per row on phones, one row on desktop."""
+    tiles = "".join(
+        f"""<div class="fr-kpi"><div class="l">{html.escape(label)}</div>
+            <div class="v" style="color:{(color or {}).get(label) or INK}">{html.escape(str(value))}</div>
+            <div class="n">{html.escape(note)}</div></div>""" for label, value, note in items)
+    st.markdown(f'<div class="fr-kpis">{tiles}</div>', unsafe_allow_html=True)
 
 
 def chips(*labels: str) -> str:

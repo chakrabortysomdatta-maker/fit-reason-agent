@@ -126,6 +126,12 @@ create table if not exists category_weights (
   weight   numeric(3,1) not null
 );
 
+create table if not exists app_settings (
+  key   text primary key,
+  value numeric not null
+);
+-- min_issue_items: issues below this many items in 7 days stay on Monitor (PRD: 5 on real volume)
+
 -- ---------- pipeline outputs ----------
 create table if not exists runs (
   run_id       uuid primary key default gen_random_uuid(),

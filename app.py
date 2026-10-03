@@ -2,7 +2,7 @@
 import streamlit as st
 
 from core.config import settings
-from core.session import ROLE_SCREENS, sign_in, user
+from core.session import ROLE_SCREENS, sign_in, sign_out, user
 from core.ui import CSS
 
 st.set_page_config(page_title="Fit-Reason · Dhaga & Co.", page_icon="🧵", layout="wide",
@@ -57,4 +57,8 @@ else:
     st.sidebar.markdown("**Dhaga & Co.**  \n### Fit-Reason")
     st.sidebar.caption(f"Signed in: {u['name']} · {len(allowed)} screen{'s' if len(allowed) != 1 else ''}")
     st.sidebar.caption("Shadow mode · internal only · sample data")
-    st.navigation(allowed).run()
+    nav = st.navigation(allowed)
+    if st.sidebar.button("Sign out", use_container_width=True):
+        sign_out()
+        st.rerun()
+    nav.run()

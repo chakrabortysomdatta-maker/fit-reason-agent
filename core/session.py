@@ -80,3 +80,14 @@ def require(screen: str) -> dict:
         st.error("You don't have access to this screen.")
         st.stop()
     return u
+
+
+def fetch_all(table: str, columns: str = "*", page: int = 1000) -> list[dict]:
+    """Supabase returns at most 1,000 rows per request; read every page."""
+    client, rows, start = db(), [], 0
+    while True:
+        chunk = client.table(table).select(columns).range(start, start + page - 1).execute().data
+        rows.extend(chunk)
+        if len(chunk) < page:
+            return rows
+        start += page

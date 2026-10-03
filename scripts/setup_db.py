@@ -30,10 +30,11 @@ LOAD_ORDER = [
     ("transit_targets", "pin_zone, max_days"),
     ("category_weights", "category, weight"),
     ("policies", "policy_key, body"),
+    ("app_settings", "key, value"),
 ]
 WIPE = ["draft_reviews", "guidance_drafts", "issue_actions", "issue_titles", "item_tags", "runs", "tickets", "returns",
         "order_events", "order_lines", "orders", "customers", "skus", "size_charts", "category_size_medians", "vendors",
-        "stage_targets", "transit_targets", "category_weights", "policies"]
+        "stage_targets", "transit_targets", "category_weights", "policies", "app_settings"]
 
 USERS = [
     ("neha@dhaga-demo.test", "NEHA_PASSWORD", "Neha", "category_head"),
@@ -85,4 +86,5 @@ if __name__ == "__main__":
         run_sql(conn)
         load_sample(conn)
         create_users(conn)
+        print("order stages:", conn.execute("select refresh_order_stages()").fetchone()[0])
     print("Database ready. Next: python scripts/run_pipeline.py")

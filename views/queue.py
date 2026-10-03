@@ -1,10 +1,10 @@
 """Neha's priority queue: grouped issues, worst first, with the evidence and her actions."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import streamlit as st
 
-from core.session import db, require
+from core.session import db, fetch_all, require
 from core.ui import AMBER, GREEN, RED, chips, header, kpis, quote
 
 u = require("queue")
@@ -17,17 +17,20 @@ ACTIONS = {"fix": "Fix size chart / listing", "escalate": "Escalate to vendor", 
 
 def load():
     issues = client.table("v_issues").select("*").execute().data
-    tags = client.table("item_tags").select("source,item_id,category,route").execute().data
-    returns = client.table("returns").select("return_id,reason_dropdown").execute().data
-    run = client.table("runs").select("cost_inr,finished_at,items").eq("kind", "tag").eq("status", "done") \
-        .order("started_at", desc=True).limit(1).execute().data
+    tags = fetch_all("item_tags", "source,item_id,category,route")
+    returns = fetch_all("returns", "return_id,reason_dropdown")
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    run = client.table("runs").select("cost_inr,finished_at,items,kind").gte("started_at", since) \
+        .order("started_at", desc=True).execute().data
     return issues, tags, returns, run
 
 
 issues, tags, returns, run = load()
-last = run[0] if run else None
+last = next((r for r in run if r["kind"] == "tag" and r.get("finished_at")), None)
+week_cost = sum(float(r["cost_inr"]) for r in run)
+week_items = sum(r["items"] for r in run if r["kind"] == "tag")
 when = ""
-if last and last.get("finished_at"):
+if last:
     when = datetime.fromisoformat(last["finished_at"]).astimezone(timezone.utc).strftime("%d %b, %H:%M UTC")
 header("Priority queue", f"{len(tags)} returns and tickets read" + (f" · last run {when}" if when else ""))
 
@@ -50,7 +53,7 @@ kpis([
     ("Open issues", str(len(open_issues)), f"{len(issues) - len(open_issues)} more on Monitor"),
     ("Check tag (unsure)", str(len(check_tag)), "waiting for a person"),
     ("Unclassified", str(len(unclassified)), "failed twice · shown, not dropped"),
-    ("Last run's model cost", f"₹{last['cost_inr']:.2f}" if last else "—", f"{last['items']} items" if last else ""),
+    ("Model cost, last 7 days", f"₹{week_cost:.2f}", f"{week_items} items read · Groq"),
 ], color={"Unclassified": RED if unclassified else None, "Returns with a specific reason": GREEN})
 st.write("")
 
@@ -60,7 +63,7 @@ df = pd.DataFrame([{
     "#": n + 1,
     "Issue": i["title"],
     "Category": CATEGORY_LABEL.get(i["category"], i["category"]),
-    "Vendor": f"{i['vendor_id']} {i['vendor_city'] or ''}".strip() if i["vendor_id"] else "—",
+    "Vendor / courier": f"{i['vendor_id']} {i['vendor_city'] or ''}".strip() if i["vendor_id"] else "—",
     "Items 7d": i["items_7d"],
     "Trend": f"{float(i['trend']):.1f}×",
     "Score": "Monitor" if i["monitor"] else int(i["score"]),
@@ -99,7 +102,8 @@ with right:
                     if c.get(dim) is not None and m.get(dim) is not None:
                         gaps.append((dim, c["size"], float(c[dim]), float(m[dim])))
             if gaps:
-                dim = max({g[0] for g in gaps}, key=lambda d: max(abs(g[2] - g[3]) for g in gaps if g[0] == d))
+                dims = [d for d in ("bust_in", "waist_in", "length_in") if any(g[0] == d for g in gaps)]
+                dim = max(dims, key=lambda d: max(abs(g[2] - g[3]) for g in gaps if g[0] == d))  # ties: bust first
                 rows_ = [g for g in gaps if g[0] == dim]
                 st.markdown(f"**Size chart vs category median ({dim.replace('_in', '')}, inches)**")
                 st.dataframe(pd.DataFrame({
@@ -110,26 +114,38 @@ with right:
                 }), hide_index=True, use_container_width=True)
 
     # customer quotes (evidence)
-    q = client.table("item_tags").select("source,item_id,sku_id,evidence_span").eq("route", "trusted") \
-        .eq("category", sel["category"])
-    q = q.eq("sub_tag", sel["sub_tag"]) if sel["sub_tag"] else q.is_("sub_tag", "null")
-    q = q.eq("vendor_id", sel["vendor_id"]) if sel["vendor_id"] else q.is_("vendor_id", "null")
-    ev = q.order("tagged_at", desc=True).limit(3).execute().data
-    st.markdown(f"**What customers said ({len(ev)} of {sel['items_7d']})**")
-    for e in ev:
-        if e["source"] == "return":
-            r = client.table("returns").select("other_text").eq("return_id", e["item_id"]).execute().data
-            text = r[0]["other_text"] if r else e["evidence_span"]
-        else:
-            t = client.table("tickets").select("body").eq("ticket_id", e["item_id"]).execute().data
-            text = t[0]["body"] if t else e["evidence_span"]
-        quote(text, f"{'Return' if e['source'] == 'return' else 'Ticket'} · {e['item_id']} · {e['sku_id'] or ''}")
+    quotes = []
+    if sel["category"] == "wismo":
+        col = {"stock_wait": "vendor_id", "fulfilment": "fc", "transit": "courier"}[sel["sub_tag"]]
+        late = client.table("v_order_stages").select("order_id").eq(col, sel["vendor_id"]) \
+            .eq("blamed_stage", sel["sub_tag"]).execute().data
+        ids = [o["order_id"] for o in late]
+        if ids:
+            for w in client.table("v_wismo_orders").select("ticket_id,order_id,body").in_("order_id", ids) \
+                    .order("created_at", desc=True).limit(3).execute().data:
+                quotes.append((w["body"], f"Ticket · {w['ticket_id']} · {w['order_id']}"))
+    else:
+        q = client.table("item_tags").select("source,item_id,sku_id,evidence_span").eq("route", "trusted") \
+            .eq("category", sel["category"])
+        q = q.eq("sub_tag", sel["sub_tag"]) if sel["sub_tag"] else q.is_("sub_tag", "null")
+        q = q.eq("vendor_id", sel["vendor_id"]) if sel["vendor_id"] else q.is_("vendor_id", "null")
+        for e in q.order("tagged_at", desc=True).limit(3).execute().data:
+            if e["source"] == "return":
+                r = client.table("returns").select("other_text").eq("return_id", e["item_id"]).execute().data
+                text = r[0]["other_text"] if r else e["evidence_span"]
+            else:
+                t = client.table("tickets").select("body").eq("ticket_id", e["item_id"]).execute().data
+                text = t[0]["body"] if t else e["evidence_span"]
+            quotes.append((text, f"{'Return' if e['source'] == 'return' else 'Ticket'} · {e['item_id']} · {e['sku_id'] or ''}"))
+    st.markdown(f"**What customers said ({len(quotes)} of {sel['items_7d']})**")
+    for text, meta in quotes:
+        quote(text, meta)
 
     c1, c2 = st.columns(2)
     clicked = None
     for i, (key, label) in enumerate(ACTIONS.items()):
         col = c1 if i % 2 == 0 else c2
-        if col.button(label if key != "escalate" else f"Escalate to {sel['vendor_id'] or 'vendor'}",
+        if col.button(label if key != "escalate" else f"Escalate to {sel['vendor_id'] or 'owner'}",
                       key=f"act-{key}", type="primary" if key == "fix" else "secondary", use_container_width=True):
             clicked = key
     if clicked:

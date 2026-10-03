@@ -20,8 +20,8 @@ from core.llm import Usage, load_prompt, structured_call
 from core.schemas import FactCheck, IssueTitle, ItemTag, ReplyDraft, TagBatch
 
 BATCH_SIZE = 15
-TRUST_AT = 0.75        # below this, a second look by the strong model
-CHECK_TAG_BELOW = 0.70  # still below this after the second look -> Neha's Check tag list
+TRUST_AT = 0.65        # below this, a second look by the strong model (0.75 sent half of all items to it)
+CHECK_TAG_BELOW = 0.60  # still below this after the second look -> the Check tag list
 ORDER_ID = re.compile(r"\bDH-\d{4,6}\b", re.IGNORECASE)
 
 
@@ -148,7 +148,7 @@ def title_issues(log=print) -> dict:
     run_id = start_run(conn, "tag")
     usage = Usage()
     issues = conn.execute(
-        "select issue_key, category, sub_tag, vendor_id, skus from v_issues where not monitor "
+        "select issue_key, category, sub_tag, vendor_id, skus from v_issues where not monitor and category <> 'wismo' "
         "and issue_key not in (select issue_key from issue_titles)"
     ).fetchall()
     for iss in issues:
@@ -156,7 +156,8 @@ def title_issues(log=print) -> dict:
             """select coalesce(r.other_text, t.body) as text from item_tags it
                left join returns r on it.source = 'return' and r.return_id = it.item_id
                left join tickets t on it.source = 'ticket' and t.ticket_id = it.item_id
-               where it.route = 'trusted' and it.category = %s and coalesce(it.sub_tag, '-') = %s
+               where it.route = 'trusted' and it.category = %s
+                 and (it.category = 'wismo' or coalesce(it.sub_tag, '-') = %s)
                  and coalesce(it.vendor_id, '-') = %s limit 5""",
             (iss["category"], iss["sub_tag"] or "-", iss["vendor_id"] or "-"),
         ).fetchall()
@@ -229,6 +230,12 @@ def build_facts(conn, order_id: Optional[str]) -> dict:
 def draft_one(conn, message: str, order_id: Optional[str], category: Optional[str], usage: Usage) -> dict:
     """Draft -> check -> one redraft -> or a person. Returns the guidance_drafts row values."""
     facts = build_facts(conn, order_id)
+    ret = facts.get("return") if isinstance(facts.get("return"), dict) else None
+    if category == "refund" and (ret is None or ret.get("refunded_on") == "no refund date recorded"):
+        # Pilot rule (PRD): refund timing and amounts are confirmed by a person when no refund date is on record.
+        return {"status": "needs_human", "reply": None, "attempts": [], "facts": facts, "check_passed": None,
+                "needs_human_reason": "Unsupported refund date: no refund date or amount is on record yet",
+                "language": None}
     attempts = []
     feedback = ""
     for _ in range(2):

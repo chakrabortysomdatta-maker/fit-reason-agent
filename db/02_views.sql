@@ -1,52 +1,8 @@
 -- Fit-Reason Agent: views. All arithmetic lives here, never in a model.
 -- security_invoker = on so the caller's row-level security applies.
 
--- ---------- Neha's priority queue ----------
-create or replace view v_issues with (security_invoker = on) as
-with tagged as (
-  select it.*,
-         coalesce(r.raised_at, t.created_at) as happened_at
-  from item_tags it
-  left join returns r on it.source = 'return' and r.return_id = it.item_id
-  left join tickets t on it.source = 'ticket' and t.ticket_id = it.item_id
-  where it.route = 'trusted'
-    and it.category in ('fit', 'quality', 'colour_mismatch', 'wismo')
-),
-grouped as (
-  select category || '|' || coalesce(sub_tag, '-') || '|' || coalesce(vendor_id, '-') as issue_key,
-         category, sub_tag, vendor_id,
-         count(*) filter (where happened_at >= now() - interval '7 days')                                       as items_7d,
-         count(*) filter (where happened_at >= now() - interval '14 days' and happened_at < now() - interval '7 days') as items_prev_7d,
-         coalesce(avg((urgency = 'high')::int) filter (where happened_at >= now() - interval '7 days'), 0)     as share_high,
-         count(*) filter (where source = 'return')                                                               as from_returns,
-         count(*) filter (where source = 'ticket')                                                               as from_tickets,
-         array_remove(array_agg(distinct sku_id), null)                                                          as skus
-  from tagged
-  group by 1, 2, 3, 4
-),
-scored as (
-  select g.*,
-         coalesce(w.weight, 1) as weight,
-         least(3.0, case when g.items_prev_7d = 0 then 1.0
-                         else g.items_7d::numeric / g.items_prev_7d end) as trend
-  from grouped g
-  left join category_weights w on w.category = g.category
-)
-select s.*,
-       s.items_7d < 5                                                        as monitor,
-       round(s.items_7d * s.weight * s.trend * (1 + 0.5 * s.share_high))    as score,
-       coalesce(t.title, initcap(replace(coalesce(s.sub_tag, s.category), '_', ' ')) ||
-                coalesce(' · ' || s.vendor_id, ''))                          as title,
-       v.city                                                                as vendor_city,
-       (select max(a.at) from issue_actions a where a.issue_key = s.issue_key) as last_action_at,
-       (select a.action from issue_actions a where a.issue_key = s.issue_key order by a.at desc limit 1) as last_action
-from scored s
-left join issue_titles t on t.issue_key = s.issue_key
-left join vendors v on v.vendor_id = s.vendor_id
-where s.items_7d > 0;
-
 -- ---------- order stages and delay attribution ----------
-create or replace view v_order_stages with (security_invoker = on) as
+create or replace view v_order_stages_calc with (security_invoker = on) as
 with ev as (
   select order_id,
          min(at) filter (where status = 'stock_available')   as stock_at,
@@ -96,6 +52,82 @@ select o.*,
             else 'transit' end                                              as blamed_stage,
        date_trunc('week', o.placed_at)                                      as week
 from over o;
+
+-- Stages are pre-computed into a table (refresh_order_stages) so screens stay fast.
+create table if not exists order_stages as select * from v_order_stages_calc with no data;
+create index if not exists order_stages_order_idx on order_stages (order_id);
+create index if not exists order_stages_vendor_idx on order_stages (vendor_id);
+
+create or replace function refresh_order_stages() returns int
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  delete from order_stages;
+  insert into order_stages select * from v_order_stages_calc;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function refresh_order_stages() from public, anon, authenticated;
+
+create or replace view v_order_stages with (security_invoker = on) as select * from order_stages;
+
+-- ---------- Neha's priority queue ----------
+create or replace view v_issues with (security_invoker = on) as
+with tagged as (
+  -- Delay complaints are filed under whoever caused that order's delay (vendor, warehouse or courier);
+  -- complaints about orders that were not late, or with no order linked, are left out.
+  select it.source, it.item_id, it.category, it.urgency, it.sku_id,
+         case when it.category = 'wismo' then st.blamed_stage else it.sub_tag end            as sub_tag,
+         case when it.category <> 'wismo' then it.vendor_id
+              when st.blamed_stage = 'stock_wait' then st.vendor_id
+              when st.blamed_stage = 'fulfilment' then st.fc
+              when st.blamed_stage = 'transit' then st.courier end                            as owner_id,
+         coalesce(r.raised_at, t.created_at) as happened_at
+  from item_tags it
+  left join returns r on it.source = 'return' and r.return_id = it.item_id
+  left join tickets t on it.source = 'ticket' and t.ticket_id = it.item_id
+  left join v_order_stages st on it.category = 'wismo' and st.order_id = it.order_id
+  where it.route = 'trusted'
+    and it.category in ('fit', 'quality', 'colour_mismatch', 'wismo')
+    and not (it.category = 'wismo' and st.blamed_stage is null)
+),
+grouped as (
+  select category || '|' || coalesce(sub_tag, '-') || '|' || coalesce(owner_id, '-') as issue_key,
+         category, sub_tag, owner_id as vendor_id,
+         count(*) filter (where happened_at >= now() - interval '7 days')                                       as items_7d,
+         count(*) filter (where happened_at >= now() - interval '14 days' and happened_at < now() - interval '7 days') as items_prev_7d,
+         coalesce(avg((urgency = 'high')::int) filter (where happened_at >= now() - interval '7 days'), 0)     as share_high,
+         count(*) filter (where source = 'return')                                                               as from_returns,
+         count(*) filter (where source = 'ticket')                                                               as from_tickets,
+         array_remove(array_agg(distinct sku_id), null)                                                          as skus
+  from tagged
+  group by 1, 2, 3, 4
+),
+scored as (
+  select g.*,
+         coalesce(w.weight, 1) as weight,
+         least(3.0, case when g.items_prev_7d = 0 then 1.0
+                         else g.items_7d::numeric / g.items_prev_7d end) as trend
+  from grouped g
+  left join category_weights w on w.category = g.category
+)
+select s.*,
+       s.items_7d < coalesce((select value from app_settings where key = 'min_issue_items'), 5) as monitor,
+       round(s.items_7d * s.weight * s.trend * (1 + 0.5 * s.share_high))    as score,
+       coalesce(t.title,
+                case when s.category = 'wismo' then
+                       case s.sub_tag when 'stock_wait' then s.vendor_id || ' is late with stock'
+                                      when 'fulfilment' then s.vendor_id || ' warehouse is slow to dispatch'
+                                      else s.vendor_id || ' deliveries are late' end
+                     else initcap(replace(coalesce(s.sub_tag, s.category), '_', ' ')) || coalesce(' · ' || s.vendor_id, '') end)
+                                                                             as title,
+       v.city                                                                as vendor_city,
+       (select max(a.at) from issue_actions a where a.issue_key = s.issue_key) as last_action_at,
+       (select a.action from issue_actions a where a.issue_key = s.issue_key order by a.at desc limit 1) as last_action
+from scored s
+left join issue_titles t on t.issue_key = s.issue_key
+left join vendors v on v.vendor_id = s.vendor_id
+where s.items_7d > 0;
 
 -- WISMO tickets linked to an order
 create or replace view v_wismo_orders with (security_invoker = on) as

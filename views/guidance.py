@@ -39,6 +39,8 @@ if run and message.strip():
 drafts = client.table("guidance_drafts").select("*").order("created_at", desc=True).limit(60).execute().data
 reviews = client.table("draft_reviews").select("draft_id,rating,at").execute().data
 rated = {r["draft_id"] for r in reviews}
+# Suggestions waiting for a rating first, then the ones handed to a person, then rated ones.
+drafts.sort(key=lambda d: (d["draft_id"] in rated, d["status"] != "drafted"))
 if not drafts:
     st.info("No suggestions yet. Run the reading pipeline, or try a message above.")
     st.stop()

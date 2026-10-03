@@ -2,16 +2,16 @@
 import pandas as pd
 import streamlit as st
 
-from core.session import db, require
+from core.session import db, fetch_all, require
 from core.ui import RED, header, kpis
 
 u = require("scorecard")
 client = db()
 
-stages = client.table("v_order_stages").select(
+stages = fetch_all("v_order_stages", 
     "order_id,vendor_id,courier,pin_zone,placed_at,stock_at,handed_at,delivered_at,stock_wait_days,fulfilment_days,"
     "transit_days,stock_target,fulfilment_target,transit_target,stock_over,fulfilment_over,transit_over,is_late,"
-    "days_late,blamed_stage").execute().data
+    "days_late,blamed_stage")
 vendors = client.table("v_vendor_scorecard").select("*").execute().data
 couriers = client.table("v_courier_scorecard").select("*").execute().data
 wismo = client.table("v_wismo_orders").select("ticket_id,order_id,body").execute().data

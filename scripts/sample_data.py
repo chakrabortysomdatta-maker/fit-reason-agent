@@ -123,6 +123,7 @@ def generate() -> dict:
     data["transit_targets"] = TRANSIT_TARGETS
     data["category_weights"] = CATEGORY_WEIGHTS
     data["policies"] = POLICIES
+    data["app_settings"] = [("min_issue_items", 3)]  # sample data is ~1/190 of real weekly volume
 
     # vendors
     for i in range(1, 41):
