@@ -14,8 +14,21 @@ OUT.mkdir(parents=True, exist_ok=True)
 ENV = dict(line.split("=", 1) for line in (ROOT / ".env").read_text().splitlines() if "=" in line and not line.startswith("#"))
 
 
+def app(page):
+    """Streamlit Community Cloud serves the app inside a frame; locally it is the page itself."""
+    if "streamlit.app" not in BASE or not hasattr(page, "frames"):
+        return page
+    for _ in range(120):
+        for f in page.frames:
+            if "/~/+/" in f.url:
+                return f
+        page.wait_for_timeout(500)
+    raise RuntimeError("app frame did not load")
+
+
 def settle(page, ms=2500):
-    page.wait_for_selector("[data-testid='stApp']", timeout=30000)
+    page = app(page)
+    page.wait_for_selector("[data-testid='stApp']", timeout=90000)
     page.wait_for_timeout(ms)
     try:
         page.wait_for_selector("[data-testid='stStatusWidget']", state="detached", timeout=60000)
@@ -27,6 +40,7 @@ def settle(page, ms=2500):
 def login(page, who, password):
     page.goto(BASE)
     settle(page)
+    page = app(page)
     if who == "chhaya.gupta":
         page.get_by_text("Ms Chhaya Gupta · CX reviewer").click()
         settle(page, 1200)
@@ -37,8 +51,10 @@ def login(page, who, password):
 
 def nav(page, label):
     """Open a screen through the menu (a reload would start a new, signed-out session)."""
+    width = (page.page if hasattr(page, "page") else page).viewport_size["width"]
+    page = app(page)
     link = page.locator("[data-testid='stSidebarNav'] a", has_text=label)
-    if page.viewport_size["width"] < 700:  # phone: the menu is collapsed
+    if width < 700:  # phone: the menu is collapsed
         for sel in ["[data-testid='stExpandSidebarButton']", "[data-testid='stSidebarCollapsedControl'] button",
                     "[data-testid='collapsedControl']"]:
             if page.locator(sel).count():
@@ -50,6 +66,7 @@ def nav(page, label):
 
 
 def shot(page, name):
+    page = page.page if hasattr(page, "page") else page
     page.screenshot(path=str(OUT / f"{name}.png"), full_page=True)
     print("saved", name)
 
@@ -64,7 +81,7 @@ with sync_playwright() as p:
         login(page, "neha", ENV["NEHA_PASSWORD"])
         shot(page, f"{device}-1-neha-queue")
         nav(page, "Delay scorecard"); shot(page, f"{device}-2-neha-scorecard")
-        menu = page.locator("[data-testid='stSidebarNav'] a").all_inner_texts()
+        menu = app(page).locator("[data-testid='stSidebarNav'] a").all_inner_texts()
         print(f"{device} Neha menu:", menu)
         ctx.close()
 
@@ -72,6 +89,8 @@ with sync_playwright() as p:
         page = ctx.new_page()
         login(page, "chhaya.gupta", ENV["CHHAYA_PASSWORD"])
         shot(page, f"{device}-3-chhaya-guidance")
-        print(f"{device} Chhaya menu:", page.locator("[data-testid='stSidebarNav'] a").all_inner_texts())
+        print(f"{device} Chhaya menu:", app(page).locator("[data-testid='stSidebarNav'] a").all_inner_texts())
+        body = app(page).inner_text("body")
+        print(f"{device} Chhaya sees guidance:", "Guidance review" in body, "| sees Priority queue:", "Priority queue" in body)
         ctx.close()
     browser.close()
