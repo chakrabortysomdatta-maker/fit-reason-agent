@@ -196,7 +196,38 @@ def generate() -> dict:
 
     _returns(data, skus)
     _tickets(data, skus)
+    _match_brief_proportions(data)
     return data
+
+
+EXTRA_REASONS = ["Size issue", "Size issue", "Damaged", "Not as described", "Wrong item delivered", "Quality issue"]
+
+
+def _match_brief_proportions(data):
+    """Bring the sample in line with the client brief: returns = 31% of orders, 'Other' = 44% of returns.
+    Adds plain orders and returns with a dropdown reason (no free text, so no model calls). Runs last, so every
+    earlier row (and its tags) stays exactly the same."""
+    other = sum(1 for r in data["returns"] if r[2] == "Other")
+    target_returns = round(other / 0.44)
+    target_orders = round(target_returns / 0.31)
+    extra_orders = target_orders - len(data["orders"])
+    extra_returns = target_returns - len(data["returns"])
+    cust_zone = {c[0]: ZONE_OF[c[1]] for c in data["customers"]}
+    first_new = len(data["orders"])
+    for n in range(extra_orders):
+        sku = R.choice(data["skus"])
+        cust = R.choice(data["customers"])[0]
+        _order(data, f"DH-6{n:04d}", cust, cust_zone[cust], sku, ago(R.uniform(6, DAYS)))
+    delivered_at = {oid: at for oid, st, at in data["order_events"] if st == "delivered"}
+    candidates = [l for l in data["order_lines"][first_new:] if l[1] in delivered_at]
+    for n, line in enumerate(R.sample(candidates, min(extra_returns, len(candidates)))):
+        raised = delivered_at[line[1]] + timedelta(days=R.uniform(0.5, 4))
+        if raised > NOW:
+            raised = NOW - timedelta(hours=2)
+        status = _rstatus(raised)
+        data["returns"].append((f"R-4{n:04d}", line[0], R.choice(EXTRA_REASONS), None, raised, status,
+                                line[5] if status == "refunded" else None,
+                                raised + timedelta(days=4) if status == "refunded" else None))
 
 
 def _order(data, oid, cust, zone, sku, placed, size=None, price=None, delivered_days_ago=None, payment=None):
