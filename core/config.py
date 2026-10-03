@@ -15,6 +15,8 @@ def _get(name: str, default: str = "") -> str:
             import streamlit as st
 
             value = str(st.secrets.get(name, "") or "")
+            if not value:  # all settings in one line: FIT_REASON = { SUPABASE_URL = "...", ... }
+                value = str(st.secrets.get("FIT_REASON", {}).get(name, "") or "")
         except Exception:
             pass
     return value.strip() or default

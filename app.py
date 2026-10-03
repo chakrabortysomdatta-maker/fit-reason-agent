@@ -27,7 +27,8 @@ def login_page() -> None:
         st.error("The app is not connected to its database yet: " + ", ".join(missing) + " not found in the app's "
                  "secrets. In Streamlit Cloud: Manage app → Settings → Secrets, paste them, Save, then Reboot app.")
         try:  # names only, never values
-            st.caption("Secret names this app can see: " + (", ".join(sorted(st.secrets.keys())) or "none"))
+            names = sorted(st.secrets.keys()) + [f"FIT_REASON.{k}" for k in st.secrets.get("FIT_REASON", {})]
+            st.caption("Secret names this app can see: " + (", ".join(names) or "none"))
         except Exception as exc:
             st.caption(f"Secrets could not be read: {type(exc).__name__}: {str(exc)[:200]}")
         st.stop()
