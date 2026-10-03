@@ -6,3 +6,4 @@ __pycache__/
 .DS_Store
 .streamlit/secrets_paste.toml
 .streamlit/secrets_oneline.toml
+deliverables/

@@ -2,6 +2,7 @@
 import pandas as pd
 import streamlit as st
 
+from core import icons
 from core.session import db, fetch_all, require
 from core.ui import RED, header, kpis
 
@@ -14,6 +15,9 @@ stages = fetch_all("v_order_stages",
     "days_late,blamed_stage")
 vendors = client.table("v_vendor_scorecard").select("*").execute().data
 couriers = client.table("v_courier_scorecard").select("*").execute().data
+makes = {}
+for s in fetch_all("skus", "vendor_id,product_type"):
+    makes.setdefault(s["vendor_id"], set()).add(icons.for_product(s["product_type"]))
 wismo = client.table("v_wismo_orders").select("ticket_id,order_id,body").execute().data
 
 header("Delay scorecard", f"Last 4 weeks · {len(stages)} orders · {len(wismo)} WISMO tickets linked to their orders")
@@ -34,10 +38,11 @@ st.write("")
 
 left, right = st.columns([3, 2], gap="medium")
 with left:
-    st.markdown("#### Vendors · judged only on stock wait")
+    st.markdown("#### 🏭 Vendors · judged only on stock wait")
     st.caption("Target: stock available within 0.5 days of the order")
     vendors.sort(key=lambda v: (-int(v["recurring"]), -(v["pct_late"] or 0)))
-    vdf = pd.DataFrame([{"Vendor": v["vendor_id"], "City": v["city"], "Orders": v["orders"],
+    vdf = pd.DataFrame([{"Vendor": v["vendor_id"], "Makes": " ".join(sorted(makes.get(v["vendor_id"], []))),
+                         "City": v["city"], "Orders": v["orders"],
                          "% late": f"{int(v['pct_late'])}%", "Avg days late": v["avg_days_late"] or "—",
                          "WISMO / 100": v["wismo_per_100"],
                          "Top delay stage": (v["top_stage"] or "—").replace("_", " "),
@@ -47,7 +52,7 @@ with left:
     rows = picked.selection.rows if picked and picked.selection else []
     sel_vendor = vendors[rows[0]]["vendor_id"] if rows else vendors[0]["vendor_id"]
 
-    st.markdown("#### Couriers · judged only on transit")
+    st.markdown("#### 🚚 Couriers · judged only on transit")
     st.caption("Target: 5–7 days by zone, 9 days to the north east")
     st.dataframe(pd.DataFrame([{"Courier": c["courier"], "Orders": c["orders"], "% late": f"{int(c['pct_late'])}%",
                                 "Avg days late": c["avg_days_late"] or "—", "Worst zone": c["worst_zone"] or "—",
@@ -61,14 +66,14 @@ with right:
     vlate = vd[vd["is_late"]]
     if v["recurring"]:
         st.markdown(f"<span style='color:{RED};font-weight:600;font-size:12px'>RECURRING</span>", unsafe_allow_html=True)
-    st.markdown(f"### {sel_vendor}, {v['city']}")
+    st.markdown(f"### 🏭 {sel_vendor}, {v['city']}  {' '.join(sorted(makes.get(sel_vendor, [])))}")
     st.write(f"{int(v['pct_late'])}% of {v['orders']} orders waited too long for this vendor's stock.")
 
     st.markdown("**Average days per stage, late orders vs target**")
     if len(vlate):
-        for label, col, target in [("Stock wait · vendor", "stock_wait_days", "stock_target"),
-                                   ("Fulfilment · FC", "fulfilment_days", "fulfilment_target"),
-                                   ("Transit · courier", "transit_days", "transit_target")]:
+        for label, col, target in [("🏭 Stock wait · vendor", "stock_wait_days", "stock_target"),
+                                   ("🏬 Fulfilment · warehouse", "fulfilment_days", "fulfilment_target"),
+                                   ("🚚 Transit · courier", "transit_days", "transit_target")]:
             avg = vlate[col].dropna().astype(float).mean()
             tgt = vlate[target].astype(float).mean()
             over = avg > tgt

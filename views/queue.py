@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import streamlit as st
 
+from core import icons
 from core.session import db, fetch_all, require
 from core.ui import AMBER, GREEN, RED, chips, header, kpis, quote
 
@@ -19,13 +20,14 @@ def load():
     issues = client.table("v_issues").select("*").execute().data
     tags = fetch_all("item_tags", "source,item_id,category,route")
     returns = fetch_all("returns", "return_id,reason_dropdown")
+    skus = {s["sku_id"]: s for s in fetch_all("skus", "sku_id,product_type,name")}
     since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     run = client.table("runs").select("cost_inr,finished_at,items,kind").gte("started_at", since) \
         .order("started_at", desc=True).execute().data
-    return issues, tags, returns, run
+    return issues, tags, returns, run, skus
 
 
-issues, tags, returns, run = load()
+issues, tags, returns, run, skus = load()
 last = next((r for r in run if r["kind"] == "tag" and r.get("finished_at")), None)
 week_cost = sum(float(r["cost_inr"]) for r in run)
 week_items = sum(r["items"] for r in run if r["kind"] == "tag")
@@ -59,10 +61,26 @@ st.write("")
 
 # ---- ranked issues
 issues.sort(key=lambda i: (i["monitor"], -(i["score"] or 0)))
+def issue_icon(i):
+    """Garment icon for product issues; vendor / warehouse / courier icon for delivery issues."""
+    if i["category"] == "wismo":
+        return icons.STAGE_ICON.get(i["sub_tag"], "📦")
+    types = [skus[s]["product_type"] for s in (i["skus"] or []) if s in skus]
+    return icons.for_product(types[0]) if types else "🛍️"
+
+
+def products(i):
+    if i["category"] == "wismo":
+        return {"stock_wait": "Vendor stock", "fulfilment": "Warehouse", "transit": "Courier"}.get(i["sub_tag"], "Delivery")
+    types = sorted({skus[s]["product_type"] for s in (i["skus"] or []) if s in skus})
+    return ", ".join(f"{icons.for_product(t)} {t.replace('_', ' ').title()}" for t in types) or "—"
+
+
 df = pd.DataFrame([{
     "#": n + 1,
-    "Issue": i["title"],
-    "Category": CATEGORY_LABEL.get(i["category"], i["category"]),
+    "Issue": f"{issue_icon(i)}  {i['title']}",
+    "Product": products(i),
+    "Category": f"{icons.CATEGORY_ICON.get(i['category'], '')} {CATEGORY_LABEL.get(i['category'], i['category'])}",
     "Vendor / courier": f"{i['vendor_id']} {i['vendor_city'] or ''}".strip() if i["vendor_id"] else "—",
     "Items 7d": i["items_7d"],
     "Trend": f"{float(i['trend']):.1f}×",
@@ -83,9 +101,10 @@ with left:
 with right:
     st.markdown(f"<span style='color:#0E6B63;font-weight:600;font-size:12px'>"
                 f"{'MONITOR' if sel['monitor'] else 'SCORE ' + str(int(sel['score']))}</span>", unsafe_allow_html=True)
-    st.markdown(f"### {sel['title']}")
+    st.markdown(f"### {issue_icon(sel)} {sel['title']}")
     st.markdown(chips(f"{sel['items_7d']} items this week", f"{sel['from_returns']} returns",
-                      f"{sel['from_tickets']} tickets", sel["vendor_id"], *(sel["skus"] or [])[:3]),
+                      f"{sel['from_tickets']} tickets", sel["vendor_id"],
+                      *[f"{icons.for_product(skus.get(s, {}).get('product_type'))} {s}" for s in (sel["skus"] or [])[:3]]),
                 unsafe_allow_html=True)
 
     # size chart vs category median for the first SKU (fit issues)

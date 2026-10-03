@@ -18,7 +18,8 @@ PERSONAS = {
 
 
 def login_page() -> None:
-    st.markdown("### Dhaga & Co. · Fit-Reason")
+    st.markdown("### 🧵 Dhaga & Co. · Fit-Reason")
+    st.caption("👗 👘 👖 🧣 👕  Everyday fashion, online since 2019")
     st.markdown("## Sign in")
     st.caption("Choose your role. You will only see the screens your role needs.")
     if not settings.supabase_url or not settings.supabase_anon_key:
@@ -51,7 +52,7 @@ def login_page() -> None:
 
 
 PAGES = {
-    "queue": st.Page("views/queue.py", title="Priority queue", icon=":material/list:", url_path="queue"),
+    "queue": st.Page("views/queue.py", title="Priority queue", icon=":material/checkroom:", url_path="queue"),
     "scorecard": st.Page("views/scorecard.py", title="Delay scorecard", icon=":material/local_shipping:",
                          url_path="scorecard"),
     "guidance": st.Page("views/guidance.py", title="Guidance review", icon=":material/chat:", url_path="guidance"),
@@ -62,7 +63,8 @@ if not u:
     st.navigation([st.Page(login_page, title="Sign in", icon=":material/login:")], position="hidden").run()
 else:
     allowed = [PAGES[s] for s in ROLE_SCREENS.get(u["role"], [])]
-    st.sidebar.markdown("**Dhaga & Co.**  \n### Fit-Reason")
+    st.sidebar.markdown("**🧵 Dhaga & Co.**  \n### Fit-Reason")
+    st.sidebar.caption("👗 👘 👖 🧣 👕")
     st.sidebar.caption(f"Signed in: {u['name']} · {len(allowed)} screen{'s' if len(allowed) != 1 else ''}")
     st.sidebar.caption("Shadow mode · internal only · sample data")
     nav = st.navigation(allowed)
