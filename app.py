@@ -22,7 +22,10 @@ def login_page() -> None:
     st.markdown("## Sign in")
     st.caption("Choose your role. You will only see the screens your role needs.")
     if not settings.supabase_url or not settings.supabase_anon_key:
-        st.error("The app is not connected to its database yet (SUPABASE_URL / SUPABASE_ANON_KEY missing).")
+        missing = [k for k, v in {"SUPABASE_URL": settings.supabase_url,
+                                  "SUPABASE_ANON_KEY": settings.supabase_anon_key}.items() if not v]
+        st.error("The app is not connected to its database yet: " + ", ".join(missing) + " not found in the app's "
+                 "secrets. In Streamlit Cloud: Manage app → Settings → Secrets, paste them, Save, then Reboot app.")
         st.stop()
 
     who = st.radio("Role", list(PERSONAS), horizontal=True, label_visibility="collapsed",

@@ -1,6 +1,5 @@
 """Settings, read from .env locally or from Hugging Face Space secrets when deployed."""
 import os
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -10,15 +9,15 @@ load_dotenv(ROOT / ".env")
 
 
 def _get(name: str, default: str = "") -> str:
-    value = os.getenv(name, default)
+    value = os.getenv(name, "")
     if not value:
-        try:  # Streamlit secrets, when running as an app
+        try:  # Streamlit Community Cloud secrets
             import streamlit as st
 
-            value = st.secrets.get(name, default)
+            value = str(st.secrets.get(name, "") or "")
         except Exception:
             pass
-    return value or default
+    return value.strip() or default
 
 
 # USD per million tokens (input, output). Check the provider's pricing page before quoting.
@@ -30,22 +29,21 @@ PRICES = {
 }
 
 
-@dataclass(frozen=True)
 class Settings:
-    supabase_url: str = field(default_factory=lambda: _get("SUPABASE_URL"))
-    supabase_anon_key: str = field(default_factory=lambda: _get("SUPABASE_ANON_KEY"))
-    supabase_service_key: str = field(default_factory=lambda: _get("SUPABASE_SERVICE_KEY"))
-    supabase_db_url: str = field(default_factory=lambda: _get("SUPABASE_DB_URL"))
-    llm_provider: str = field(default_factory=lambda: _get("LLM_PROVIDER", "groq"))
-    groq_api_key: str = field(default_factory=lambda: _get("GROQ_API_KEY"))
-    openrouter_api_key: str = field(default_factory=lambda: _get("OPENROUTER_API_KEY"))
-    fast_model: str = field(default_factory=lambda: _get("FAST_MODEL", "openai/gpt-oss-20b"))
-    strong_model: str = field(default_factory=lambda: _get("STRONG_MODEL", "openai/gpt-oss-120b"))
-    inr_per_usd: float = field(default_factory=lambda: float(_get("INR_PER_USD", "88")))
+    """Read on every access, so secrets added after the app started are still picked up."""
+
+    supabase_url = property(lambda self: _get("SUPABASE_URL"))
+    supabase_anon_key = property(lambda self: _get("SUPABASE_ANON_KEY"))
+    supabase_service_key = property(lambda self: _get("SUPABASE_SERVICE_KEY"))
+    supabase_db_url = property(lambda self: _get("SUPABASE_DB_URL"))
+    llm_provider = property(lambda self: _get("LLM_PROVIDER", "groq"))
+    groq_api_key = property(lambda self: _get("GROQ_API_KEY"))
+    openrouter_api_key = property(lambda self: _get("OPENROUTER_API_KEY"))
+    fast_model = property(lambda self: _get("FAST_MODEL", "openai/gpt-oss-20b"))
+    strong_model = property(lambda self: _get("STRONG_MODEL", "openai/gpt-oss-120b"))
+    inr_per_usd = property(lambda self: float(_get("INR_PER_USD", "88")))
     # Kill switch: set MODEL_CALLS_ENABLED=false to stop every model call.
-    model_calls_enabled: bool = field(
-        default_factory=lambda: _get("MODEL_CALLS_ENABLED", "true").lower() != "false"
-    )
+    model_calls_enabled = property(lambda self: _get("MODEL_CALLS_ENABLED", "true").lower() != "false")
 
 
 settings = Settings()
