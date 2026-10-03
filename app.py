@@ -26,6 +26,10 @@ def login_page() -> None:
                                   "SUPABASE_ANON_KEY": settings.supabase_anon_key}.items() if not v]
         st.error("The app is not connected to its database yet: " + ", ".join(missing) + " not found in the app's "
                  "secrets. In Streamlit Cloud: Manage app → Settings → Secrets, paste them, Save, then Reboot app.")
+        try:  # names only, never values
+            st.caption("Secret names this app can see: " + (", ".join(sorted(st.secrets.keys())) or "none"))
+        except Exception as exc:
+            st.caption(f"Secrets could not be read: {type(exc).__name__}: {str(exc)[:200]}")
         st.stop()
 
     who = st.radio("Role", list(PERSONAS), horizontal=True, label_visibility="collapsed",
