@@ -30,14 +30,14 @@ if run and message.strip():
     with st.spinner("Reading the message, pulling facts, drafting and checking…"):
         try:
             result = try_message(message.strip(), order_hint.strip() or None)
-            st.session_state.selected_draft = str(result["draft_id"])
+            st.session_state.jump_to = str(result["draft_id"])  # show the new draft on this run
         except ModelCallsDisabled as exc:
             st.error(str(exc))
         except Exception as exc:
             st.error(f"The system could not process this message: {exc}")
 
 # ---- list + detail
-drafts = client.table("guidance_drafts").select("*").order("created_at", desc=True).limit(60).execute().data
+drafts = client.table("guidance_drafts").select("*").order("created_at", desc=True).limit(500).execute().data
 reviews = client.table("draft_reviews").select("draft_id,rating,at").execute().data
 rated = {r["draft_id"] for r in reviews}
 # Suggestions waiting for a rating first, then the ones handed to a person, then rated ones.
@@ -51,8 +51,12 @@ with left:
     to_rate = sum(1 for d in drafts if d["status"] == "drafted" and d["draft_id"] not in rated)
     st.markdown(f"#### Messages · {to_rate} to rate")
     ids = [d["draft_id"] for d in drafts]
-    default = st.session_state.get("selected_draft")
-    idx = ids.index(default) if default in ids else 0
+    # One stable widget (fixed key): a changing index would rebuild it and drop the reviewer's click.
+    jump = st.session_state.pop("jump_to", None)
+    if jump in ids:
+        st.session_state.draft_pick = jump
+    elif st.session_state.get("draft_pick") not in ids:
+        st.session_state.draft_pick = ids[0]
 
     def label(i):
         d = drafts[ids.index(i)]
@@ -63,8 +67,7 @@ with left:
         return f"{text}  ·  {ref}{(d['category'] or '—').replace('_', ' ')} · {s}"
 
     with st.container(height=560, border=False):  # the list scrolls on its own; the reply stays in view
-        chosen = st.radio("Messages", ids, index=idx, format_func=label, label_visibility="collapsed")
-    st.session_state.selected_draft = chosen
+        chosen = st.radio("Messages", ids, key="draft_pick", format_func=label, label_visibility="collapsed")
 
 with right:
     d = next(x for x in drafts if x["draft_id"] == chosen)
