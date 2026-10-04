@@ -3,9 +3,10 @@ import streamlit as st
 
 from core.config import settings
 from core.session import ROLE_SCREENS, sign_in, sign_out, user
+from core import garments
 from core.ui import CSS
 
-st.set_page_config(page_title="Fit-Reason · Dhaga & Co.", page_icon="🧵", layout="wide",
+st.set_page_config(page_title="Fit-Reason · Dhaga & Co.", page_icon=":material/checkroom:", layout="wide",
                    initial_sidebar_state="auto")
 st.markdown(CSS, unsafe_allow_html=True)
 
@@ -18,8 +19,9 @@ PERSONAS = {
 
 
 def login_page() -> None:
-    st.markdown("### 🧵 Dhaga & Co. · Fit-Reason")
-    st.caption("👗 👘 👖 🧣 👕  Everyday fashion, online since 2019")
+    st.markdown(garments.row(garments.SHOWCASE, 46), unsafe_allow_html=True)
+    st.markdown("### Dhaga & Co. · Fit-Reason")
+    st.caption("Everyday fashion, online since 2019")
     st.markdown("## Sign in")
     st.caption("Choose your role. You will only see the screens your role needs.")
     if not settings.supabase_url or not settings.supabase_anon_key:
@@ -63,8 +65,8 @@ if not u:
     st.navigation([st.Page(login_page, title="Sign in", icon=":material/login:")], position="hidden").run()
 else:
     allowed = [PAGES[s] for s in ROLE_SCREENS.get(u["role"], [])]
-    st.sidebar.markdown("**🧵 Dhaga & Co.**  \n### Fit-Reason")
-    st.sidebar.caption("👗 👘 👖 🧣 👕")
+    st.sidebar.markdown("**Dhaga & Co.**  \n### Fit-Reason")
+    st.sidebar.markdown(garments.row(garments.SHOWCASE[:5], 30), unsafe_allow_html=True)
     st.sidebar.caption(f"Signed in: {u['name']} · {len(allowed)} screen{'s' if len(allowed) != 1 else ''}")
     st.sidebar.caption("Shadow mode · internal only · sample data")
     nav = st.navigation(allowed)

@@ -4,7 +4,7 @@ import json
 
 import streamlit as st
 
-from core import icons
+from core import garments
 from core.session import db, require
 from core.ui import AMBER, GREEN, RED, chips, header
 
@@ -58,9 +58,7 @@ with left:
         d = drafts[ids.index(i)]
         s = "Rated" if i in rated else STATUS[d["status"]][0]
         text = d["message_text"] if len(d["message_text"]) < 70 else d["message_text"][:67] + "…"
-        order = d["facts"].get("order") if isinstance(d["facts"], dict) else None
-        garment = icons.for_product(name=order.get("product")) if isinstance(order, dict) else "💬"
-        return f"{garment} {text}  ·  {icons.CATEGORY_ICON.get(d['category'], '')} {d['category'] or '—'} · {s}"
+        return f"{text}  ·  {(d['category'] or '—').replace('_', ' ')} · {s}"
 
     chosen = st.radio("Messages", ids, index=idx, format_func=label, label_visibility="collapsed")
     st.session_state.selected_draft = chosen
@@ -70,9 +68,15 @@ with right:
     st.markdown(f"**Customer wrote** · {d['ticket_id'] or 'typed in Try a message'}")
     st.markdown(f"<p style='font-size:17px'>“{html.escape(d['message_text'])}”</p>", unsafe_allow_html=True)
     order = d["facts"].get("order") if isinstance(d["facts"].get("order"), dict) else None
-    st.markdown(chips(f"{icons.CATEGORY_ICON.get(d['category'], '')} {d['category'] or '—'}", d["language"],
-                      f"{icons.for_product(name=order['product'])} {order['product']} · size {order.get('size_bought', '—')}"
-                      if order else None, order["order_id"] if order else None), unsafe_allow_html=True)
+    if order:
+        kind = next((k for w, k in [("kurt", "kurta"), ("anarkali", "kurta"), ("frock", "frock"), ("dress", "dress"),
+                                    ("palazzo", "palazzo"), ("dupatta", "dupatta"), ("shirt", "kids_shirt"),
+                                    ("tee", "tshirt")] if w in order["product"].lower()), "kurta")
+        st.markdown(f'<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">'
+                    f'{garments.svg(kind, None, 44)}<div><b>{html.escape(order["product"])}</b><br>'
+                    f'<span style="color:#5B625E;font-size:13px">Order {order["order_id"]} · size '
+                    f'{order.get("size_bought", "—")}</span></div></div>', unsafe_allow_html=True)
+    st.markdown(chips((d["category"] or "—").replace("_", " "), d["language"]), unsafe_allow_html=True)
 
     with st.expander("Facts the reply may use (from Dhaga's records, not the model)", expanded=False):
         facts = d["facts"] or {}
