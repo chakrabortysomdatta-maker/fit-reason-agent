@@ -46,6 +46,24 @@ Dhaga & Co. gets about 14,880 returns a week (31% of orders), and 44% of them gi
 
 ---
 
+## Demo walkthrough (no sign-in needed)
+
+The live link opens straight into Neha's view. Each person still sees only their own screens; switching role signs in as the other person behind the scenes.
+
+1. **Open** https://dhaga-fit-reason.streamlit.app. It lands on Neha's **Priority queue**.
+2. **Point at the first tile:** returns with a usable reason went from 56% to about 90%.
+3. **Click the top issue, "V-17 kurta runs small".** Show the size chart (2 inches tighter than standard) and read a customer quote aloud. Click **Fix size chart** to show the action is recorded.
+4. **Open "Delay scorecard"** from the menu (on a phone it's behind » at the top left). Point at the vendor flagged **Recurring**, then at the stage bars showing where the time was lost.
+5. **Click "Switch to Ms Chhaya Gupta"** under the name at the top right. The view changes to **Guidance review**, the only screen her role has.
+6. **Pick the message labelled "... DH-48213 · fit".** Show the kurta, the facts used and the Hinglish reply quoting 36 vs 38 inches and the exchange deadline. Rate it **Send as-is**; nothing is sent to the customer.
+7. **Show the deliberate failure:** pick "refund kab milega, 2000 wapas chahiye ... DH-47790". It refuses to promise a refund date and hands the message to a person.
+8. **Optional, live:** type a message in **Try a message** (with an order number such as DH-48213) and click **Run**. A new suggestion appears in about 10 seconds.
+9. **Click "Switch to Neha"** to go back.
+
+Shortcut: https://dhaga-fit-reason.streamlit.app/?as=chhaya opens Ms Chhaya Gupta's view directly.
+
+---
+
 ## Quick start (about 5 minutes)
 
 ### What you need
