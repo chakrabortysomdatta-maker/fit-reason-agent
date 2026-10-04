@@ -58,9 +58,12 @@ with left:
         d = drafts[ids.index(i)]
         s = "Rated" if i in rated else STATUS[d["status"]][0]
         text = d["message_text"] if len(d["message_text"]) < 70 else d["message_text"][:67] + "…"
-        return f"{text}  ·  {(d['category'] or '—').replace('_', ' ')} · {s}"
+        order = d["facts"].get("order") if isinstance(d["facts"], dict) else None
+        ref = f"{order['order_id']} · " if isinstance(order, dict) else ""
+        return f"{text}  ·  {ref}{(d['category'] or '—').replace('_', ' ')} · {s}"
 
-    chosen = st.radio("Messages", ids, index=idx, format_func=label, label_visibility="collapsed")
+    with st.container(height=560, border=False):  # the list scrolls on its own; the reply stays in view
+        chosen = st.radio("Messages", ids, index=idx, format_func=label, label_visibility="collapsed")
     st.session_state.selected_draft = chosen
 
 with right:
