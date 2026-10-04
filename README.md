@@ -17,6 +17,7 @@ Everything handed in for the FDE Academy Mini Project lives in [`docs/`](docs):
 | Document | What it is |
 |---|---|
 | [Discovery note](docs/DISCOVERY_NOTE.md) | One page, dated before the first code commit: the problem, owner, evidence, cost, success measures, ranked shortlist and biggest assumption. Also as [plain text](docs/DISCOVERY_NOTE.txt). |
+| [Build note](docs/BUILD_NOTE.md) | Two pages: the code-versus-model table, why each pattern is there, the cost line with its arithmetic, and what broke that we didn't expect. Also as [plain text](docs/BUILD_NOTE.txt). |
 | [Product Requirements Document](docs/Product-Requirements-Document.docx) | The business case, users, solution, alternatives considered, flows, acceptance criteria and timeline (FDE template). |
 | [Technical Architecture Document](docs/Technical-Architecture-Document.docx) | Architecture, data flow, data model, tech stack, model settings, security, operations, cost and likely questions. |
 | [CXO pitch deck](docs/CXO-Pitch-Deck.pptx) | 13 slides for the client meeting plus a 4-slide appendix (architecture, information flow, cost and profit, data). Speaker notes include the demo script. |
@@ -217,7 +218,7 @@ scripts/
   run_pipeline.py      the batch run
   ui_check.py          signs in as each role and screenshots every screen (needs Playwright + Edge)
   deploy_space.py      optional Hugging Face deploy (needs HF PRO)
-docs/                  submission documents, diagrams/ and screens/ (screenshots from scripts/ui_check.py)
+docs/                  submission documents (discovery note, build note, PRD, TAD, deck, UX screens), diagrams/ and screens/ (screenshots from scripts/ui_check.py)
 ```
 
 ---
