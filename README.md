@@ -130,6 +130,7 @@ All settings live in `.env` locally. On Streamlit Community Cloud they live in t
   - Hinglish comments
   - 40 vendors in Tiruppur and Jaipur
   - Some problems are planted so the demo has something to find, e.g. V-17's size chart is 2 inches tight.
+- **Pinned clock for the demo.** The sample data carries a `data_as_of` setting (its load time), and every "last 7 days" and "last 4 weeks" is counted from it. So the demo shows the same issues whenever it is opened. With real data the setting is absent and the clock is simply today.
 - **In a pilot,** a nightly export from Dhaga's order database replaces the sample data.
 
 ---

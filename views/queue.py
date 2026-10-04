@@ -23,8 +23,7 @@ def load():
     tags = fetch_all("item_tags", "source,item_id,category,route")
     returns = fetch_all("returns", "return_id,reason_dropdown")
     skus = {s["sku_id"]: s for s in fetch_all("skus", "sku_id,product_type,name,colour")}
-    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    run = client.table("runs").select("cost_inr,finished_at,items,kind").gte("started_at", since) \
+    run = client.table("runs").select("cost_inr,finished_at,items,kind").eq("status", "done") \
         .order("started_at", desc=True).execute().data
     return issues, tags, returns, run, skus
 
@@ -57,7 +56,7 @@ kpis([
     ("Open issues", str(len(open_issues)), f"{len(issues) - len(open_issues)} more on Monitor"),
     ("Check tag (unsure)", str(len(check_tag)), "waiting for a person"),
     ("Unclassified", str(len(unclassified)), "failed twice · shown, not dropped"),
-    ("Model cost, last 7 days", f"₹{week_cost:.2f}", f"{week_items} items read · Groq"),
+    ("Model cost, all runs so far", f"₹{week_cost:.2f}", f"{week_items} items read · Groq"),
 ], color={"Unclassified": RED if unclassified else None, "Returns with a specific reason": GREEN})
 st.write("")
 

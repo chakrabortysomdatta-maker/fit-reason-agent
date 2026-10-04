@@ -2,6 +2,14 @@
 -- security_invoker = on so the caller's row-level security applies.
 
 -- ---------- order stages and delay attribution ----------
+-- The clock the views use. With app_settings.data_as_of set (sample data), every "last 7 days" and
+-- "last 4 weeks" is counted from the data's load time, so the demo looks the same whenever it is opened.
+-- Without it (real data), it is simply now().
+create or replace function data_now() returns timestamptz
+language sql stable as $$
+  select coalesce((select to_timestamp(value::double precision) from app_settings where key = 'data_as_of'), now())
+$$;
+
 create or replace view v_order_stages_calc with (security_invoker = on) as
 with ev as (
   select order_id,
@@ -19,11 +27,11 @@ vend as (
 base as (
   select o.order_id, o.placed_at, o.courier, o.fc, o.pin_zone, o.status, v.vendor_id,
          ev.stock_at, ev.handed_at, ev.delivered_at,
-         extract(epoch from (coalesce(ev.stock_at, now()) - o.placed_at)) / 86400.0                     as stock_wait_days,
+         extract(epoch from (coalesce(ev.stock_at, data_now()) - o.placed_at)) / 86400.0                     as stock_wait_days,
          case when ev.stock_at is null then null
-              else extract(epoch from (coalesce(ev.handed_at, now()) - ev.stock_at)) / 86400.0 end    as fulfilment_days,
+              else extract(epoch from (coalesce(ev.handed_at, data_now()) - ev.stock_at)) / 86400.0 end    as fulfilment_days,
          case when ev.handed_at is null then null
-              else extract(epoch from (coalesce(ev.delivered_at, now()) - ev.handed_at)) / 86400.0 end as transit_days,
+              else extract(epoch from (coalesce(ev.delivered_at, data_now()) - ev.handed_at)) / 86400.0 end as transit_days,
          (select target_days from stage_targets where stage = 'stock_wait') as stock_target,
          (select target_days from stage_targets where stage = 'fulfilment') as fulfilment_target,
          tt.max_days                                                        as transit_target
@@ -94,9 +102,9 @@ with tagged as (
 grouped as (
   select category || '|' || coalesce(sub_tag, '-') || '|' || coalesce(owner_id, '-') as issue_key,
          category, sub_tag, owner_id as vendor_id,
-         count(*) filter (where happened_at >= now() - interval '7 days')                                       as items_7d,
-         count(*) filter (where happened_at >= now() - interval '14 days' and happened_at < now() - interval '7 days') as items_prev_7d,
-         coalesce(avg((urgency = 'high')::int) filter (where happened_at >= now() - interval '7 days'), 0)     as share_high,
+         count(*) filter (where happened_at >= data_now() - interval '7 days')                                       as items_7d,
+         count(*) filter (where happened_at >= data_now() - interval '14 days' and happened_at < data_now() - interval '7 days') as items_prev_7d,
+         coalesce(avg((urgency = 'high')::int) filter (where happened_at >= data_now() - interval '7 days'), 0)     as share_high,
          count(*) filter (where source = 'return')                                                               as from_returns,
          count(*) filter (where source = 'ticket')                                                               as from_tickets,
          array_remove(array_agg(distinct sku_id), null)                                                          as skus
@@ -143,7 +151,7 @@ create or replace view v_vendor_scorecard with (security_invoker = on) as
 with weekly as (
   select vendor_id, week, avg(stock_late::int) as late_share
   from v_order_stages
-  where week >= date_trunc('week', now()) - interval '4 weeks'
+  where week >= date_trunc('week', data_now()) - interval '4 weeks'
   group by vendor_id, week
 )
 select s.vendor_id,
@@ -163,7 +171,7 @@ create or replace view v_courier_scorecard with (security_invoker = on) as
 with weekly as (
   select courier, week, avg(transit_late::int) as late_share
   from v_order_stages
-  where week >= date_trunc('week', now()) - interval '4 weeks' and handed_at is not null
+  where week >= date_trunc('week', data_now()) - interval '4 weeks' and handed_at is not null
   group by courier, week
 ),
 zones as (
