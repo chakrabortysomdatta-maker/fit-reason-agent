@@ -2,7 +2,7 @@
 import streamlit as st
 
 from core.config import settings
-from core.session import ROLE_SCREENS, sign_in, sign_out, user
+from core.session import ROLE_SCREENS, demo_sign_in, sign_in, sign_out, user
 from core import garments
 from core.ui import CSS
 
@@ -61,6 +61,13 @@ PAGES = {
 }
 
 u = user()
+if not u and settings.demo_mode:
+    # Demo link: open straight into the app, no sign-in page. ?as=chhaya opens Ms Chhaya Gupta's view.
+    err = demo_sign_in(st.query_params.get("as", "neha"))
+    if err:
+        st.error(f"Demo sign-in failed: {err}")
+        st.stop()
+    st.rerun()
 if not u:
     st.navigation([st.Page(login_page, title="Sign in", icon=":material/login:")], position="hidden").run()
 else:
@@ -70,7 +77,9 @@ else:
     st.sidebar.caption(f"Signed in: {u['name']} · {len(allowed)} screen{'s' if len(allowed) != 1 else ''}")
     st.sidebar.caption("Shadow mode · internal only · sample data")
     nav = st.navigation(allowed)
-    if st.sidebar.button("Sign out", use_container_width=True):
+    if settings.demo_mode:
+        st.sidebar.caption("Demo mode: no sign-in needed. Use the switch button by the name to see the other role.")
+    elif st.sidebar.button("Sign out", use_container_width=True):
         sign_out()
         st.rerun()
     nav.run()

@@ -47,6 +47,16 @@ def sign_in(username: str, password: str) -> Optional[str]:
     return None
 
 
+DEMO_ROLES = {"neha": ("neha", "neha_password"), "chhaya": ("chhaya.gupta", "chhaya_password")}
+
+
+def demo_sign_in(who: str) -> Optional[str]:
+    """Demo mode: sign in server-side as Neha or Ms Chhaya Gupta. The password never reaches the browser,
+    and the database still applies that person's access rules."""
+    username, attr = DEMO_ROLES.get(who, DEMO_ROLES["neha"])
+    return sign_in(username, getattr(settings, attr))
+
+
 def sign_out() -> None:
     st.session_state.pop("user", None)
 

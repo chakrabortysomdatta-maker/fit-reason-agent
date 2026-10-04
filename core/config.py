@@ -44,6 +44,11 @@ class Settings:
     fast_model = property(lambda self: _get("FAST_MODEL", "openai/gpt-oss-20b"))
     strong_model = property(lambda self: _get("STRONG_MODEL", "openai/gpt-oss-120b"))
     inr_per_usd = property(lambda self: float(_get("INR_PER_USD", "88")))
+    neha_password = property(lambda self: _get("NEHA_PASSWORD"))
+    chhaya_password = property(lambda self: _get("CHHAYA_PASSWORD"))
+    # Demo mode: the link opens without a sign-in page (on unless DEMO_MODE=false and needs both passwords).
+    demo_mode = property(lambda self: _get("DEMO_MODE", "true").lower() != "false"
+                         and bool(self.neha_password and self.chhaya_password))
     # Kill switch: set MODEL_CALLS_ENABLED=false to stop every model call.
     model_calls_enabled = property(lambda self: _get("MODEL_CALLS_ENABLED", "true").lower() != "false")
 

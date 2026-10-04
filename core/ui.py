@@ -3,7 +3,8 @@ import html
 
 import streamlit as st
 
-from core.session import ROLE_LABEL, sign_out, user
+from core.config import settings
+from core.session import ROLE_LABEL, demo_sign_in, sign_out, user
 
 TEAL, INK, MUTED, RED, AMBER, GREEN = "#0E6B63", "#1B1F1D", "#5B625E", "#A61B1B", "#8A4206", "#1E6B35"
 AVATAR = {"category_head": TEAL, "cx_reviewer": AMBER, "supply_chain": "#3D4440"}
@@ -62,6 +63,16 @@ def header(title: str, subtitle: str = "") -> None:
                </div>""",
             unsafe_allow_html=True,
         )
+        if settings.demo_mode:  # demo mode: no sign-in, so offer the other role here (also reachable on a phone)
+            other = ("chhaya", "Ms Chhaya Gupta") if u["role"] == "category_head" else ("neha", "Neha")
+            _, btn = st.columns([1, 2])
+            if btn.button(f"Switch to {other[1]}", key="switch-role", use_container_width=True):
+                sign_out()
+                err = demo_sign_in(other[0])
+                if err:
+                    st.error(err)
+                st.query_params["as"] = other[0]
+                st.rerun()
 
 
 def kpis(items: list[tuple[str, str, str]], color: dict | None = None) -> None:
