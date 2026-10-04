@@ -4,7 +4,7 @@
 
 An internal pilot for Dhaga & Co. that reads every return reason and customer message (English, Hindi or Hinglish) and sends what it finds to the person who can act on it.
 
-- **Live demo:** https://dhaga-fit-reason.streamlit.app (sign-in required, sample data only)
+- **Live demo:** https://dhaga-fit-reason.streamlit.app opens without a sign-in, straight into Neha's view. Add `?as=chhaya` for Ms Chhaya Gupta's. Sample data only.
 - **Built for:** FDE Academy · Tech Track · Mini Project 1, "The Dhaga & Co. Engagement"
 - **Submission documents:** [see below](#submission-documents)
 
@@ -77,7 +77,7 @@ python scripts/run_pipeline.py 40  # 40 = how many tickets get a suggested reply
 streamlit run app.py               # opens http://localhost:8501
 ```
 
-Sign in with username **`neha`** or **`chhaya.gupta`** and the password you set in `.env` (`NEHA_PASSWORD` or `CHHAYA_PASSWORD`).
+The app opens straight into Neha's view (**demo mode**, on by default). Use **Switch to Ms Chhaya Gupta** by the name, or open `http://localhost:8501/?as=chhaya`. With `DEMO_MODE=false` you get the sign-in page instead: username **`neha`** or **`chhaya.gupta`** and the password from `.env`.
 
 ---
 
@@ -94,7 +94,8 @@ All settings live in `.env` locally. On Streamlit Community Cloud they live in t
 | `GROQ_API_KEY` | yes* | Groq key. *Or `OPENROUTER_API_KEY` with `LLM_PROVIDER=openrouter`. |
 | `LLM_PROVIDER` | no | `groq` (default) or `openrouter` |
 | `FAST_MODEL` / `STRONG_MODEL` | no | Defaults: `openai/gpt-oss-20b` (tagging, checks) / `openai/gpt-oss-120b` (unsure items, replies) |
-| `NEHA_PASSWORD`, `CHHAYA_PASSWORD` | setup only | Passwords for the two demo logins |
+| `NEHA_PASSWORD`, `CHHAYA_PASSWORD` | setup + demo mode | Passwords for the two demo logins. Demo mode uses them server-side, so the link opens without a sign-in. |
+| `DEMO_MODE` | no | `true` by default (no sign-in page). Set to `false` to require sign-in. |
 | `INR_PER_USD` | no | Exchange rate for the cost meter (default 88) |
 | `MODEL_CALLS_ENABLED` | no | Set to `false` to stop every AI call (kill switch) |
 
@@ -213,15 +214,17 @@ docs/                  submission documents, diagrams/ and screens/ (screenshots
 
 The hosted app needs these settings:
 - Required: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_DB_URL` and `GROQ_API_KEY`
-- Optional: the model settings
+- For the no-sign-in demo link: `NEHA_PASSWORD` and `CHHAYA_PASSWORD`
+- Optional: the model settings, `DEMO_MODE`
 
-It does **not** need the Supabase secret key or the demo passwords.
+It does **not** need the Supabase secret key.
 
 ---
 
 ## Known limitations
 
-- Refreshing the browser signs you out (Streamlit sessions).
+- Demo mode means anyone with the link can click actions, rate replies and use "Try a message" (about ₹0.03 each). That's fine for sample data; set `DEMO_MODE=false` for a pilot on real data.
+- Without demo mode, refreshing the browser signs you out (Streamlit sessions). With it, a refresh opens Neha's view again.
 - Free-tier apps sleep after a few days without visits. The first visit takes about 30 seconds to wake.
 - The batch run is started by hand today. In the pilot it becomes a nightly scheduled job.
 - The sample data is about 1/190 of Dhaga's real weekly volume. The minimum items per issue is set to 3 for it (5 on real data).
